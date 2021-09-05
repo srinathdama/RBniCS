@@ -511,6 +511,26 @@ class ParametrizedReducedDifferentialProblem(ParametrizedProblem, metaclass=ABCM
         #
         return error
 
+    def compute_reduced_truth_solutions(self, **kwargs):
+        """
+        returns the reduced and truth solutions similar to 'compute_error' function
+
+        """
+
+        self.truth_problem.solve(**kwargs)
+        (components, inner_product) = self._preprocess_compute_error_and_relative_error_kwargs(**kwargs)
+        
+        N = self._solution.N
+        reduced_solution = self.basis_functions[:N] * self._solution
+        truth_solution = self.truth_problem._solution
+
+        return [reduced_solution, truth_solution]
+        
+        
+
+
+
+
     def compute_relative_error(self, **kwargs):
         """
         It returns the function _compute_relative_error() evaluated for the desired parameter.

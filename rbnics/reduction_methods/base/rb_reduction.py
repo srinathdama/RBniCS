@@ -401,6 +401,45 @@ def RBReduction(DifferentialProblemReductionMethod_DerivedClass):
             error_analysis_table.save(
                 self.folder["error_analysis"], "error_analysis" if filename is None else filename)
 
+        def save_data(self, N_generator=None, filename=None, **kwargs):
+            """
+            It computes the error of the reduced order approximation with respect to the full order one
+            over the testing set.
+
+            :param N_generator: generator of dimension of reduced problem.
+            """
+            self._init_error_analysis(**kwargs)
+            reduced_solution_temp, truth_solution_temp = self._save_data(filename, **kwargs)
+            # self._finalize_error_analysis(**kwargs)
+            return [reduced_solution_temp, truth_solution_temp]
+
+        def _save_data(self, filename=None, **kwargs):
+
+            print(TextBox(self.truth_problem.name() + " " + self.label + " data gen begins", fill="="))
+            print("")
+
+
+            # for (mu_index, mu) in enumerate(self.testing_set):
+            for (mu_index, mu) in enumerate(self.training_set):
+                print(TextLine(str(mu_index), fill="#"))
+
+                self.reduced_problem.set_mu(mu)
+                self.reduced_problem.solve(**kwargs)
+
+                reduced_solution_temp, truth_solution_temp = self.reduced_problem.compute_reduced_truth_solutions(**kwargs)
+                
+            
+            # Print
+            print("")
+
+            print("")
+            print(TextBox(self.truth_problem.name() + " " + self.label + " data generation ends", fill="="))
+            print("")
+
+            return [reduced_solution_temp, truth_solution_temp]
+
+
+        
         def speedup_analysis(self, N_generator=None, filename=None, **kwargs):
             """
             It computes the speedup of the reduced order approximation with respect to the full order one
