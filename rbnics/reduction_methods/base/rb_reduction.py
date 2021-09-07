@@ -401,7 +401,7 @@ def RBReduction(DifferentialProblemReductionMethod_DerivedClass):
             error_analysis_table.save(
                 self.folder["error_analysis"], "error_analysis" if filename is None else filename)
 
-        def save_data(self, N_generator=None, filename=None, **kwargs):
+        def save_data(self, N_generator=None, directory=None, **kwargs):
             """
             It computes the error of the reduced order approximation with respect to the full order one
             over the testing set.
@@ -409,34 +409,83 @@ def RBReduction(DifferentialProblemReductionMethod_DerivedClass):
             :param N_generator: generator of dimension of reduced problem.
             """
             self._init_error_analysis(**kwargs)
-            reduced_solution_temp, truth_solution_temp = self._save_data(filename, **kwargs)
-            # self._finalize_error_analysis(**kwargs)
-            return [reduced_solution_temp, truth_solution_temp]
+            self._save_data(directory, **kwargs)
+            
 
-        def _save_data(self, filename=None, **kwargs):
+        def _save_data(self, directory=None, **kwargs):
 
             print(TextBox(self.truth_problem.name() + " " + self.label + " data gen begins", fill="="))
             print("")
 
+            from rbnics.utils.io import NumpyIO
+            import numpy as np
+            import pandas as pd
 
             # for (mu_index, mu) in enumerate(self.testing_set):
-            for (mu_index, mu) in enumerate(self.training_set):
-                print(TextLine(str(mu_index), fill="#"))
-
-                self.reduced_problem.set_mu(mu)
-                self.reduced_problem.solve(**kwargs)
-
-                reduced_solution_temp, truth_solution_temp = self.reduced_problem.compute_reduced_truth_solutions(**kwargs)
+            idxs         = []
+            Ns           = []
+            error_means  = []
+            error_stds   = []
+            error_maxs   = []
+            error_mins   = []
+            for i, (data_set, save_str) in enumerate(zip([self.training_set, self.testing_set],
+                                                    ['train', 'test'])):
                 
-            
+                if len(data_set) == 0:
+                    break
+                directory_str = os.path.join(directory, save_str)
+                os.makedirs(directory_str, exist_ok=True)
+                for (mu_index, mu) in enumerate(data_set):
+                    print(TextLine(str(mu_index), fill="#"))
+
+                    N = self.reduced_problem.N
+                    self.reduced_problem.set_mu(mu)
+                    self.reduced_problem.solve(N, **kwargs)
+
+                    reduced_solution_temp, truth_solution_temp, N = self.reduced_problem.compute_reduced_truth_solutions(**kwargs)
+
+                    ### save dict containing 'mu, mesh, truth and reduced solutions' 
+                    mesh = truth_solution_temp.function_space().mesh()
+                    # fvec = truth_solution_temp.vector()
+                    c_truth = truth_solution_temp.compute_vertex_values(mesh)
+                    c_reduced = reduced_solution_temp.compute_vertex_values(mesh)              
+
+                    data_dict = {'idx':mu_index,
+                                'mesh_cells':mesh.cells(),
+                                'mesh_nodes':mesh.coordinates(),
+                                'truth_solution':c_truth,
+                                'reduced_solution':c_reduced,
+                                'N': N}
+
+                    ## errors
+                    error = c_truth - c_reduced
+                    idxs.append(mu_index)
+                    Ns.append(N)
+                    error_means.append(np.mean(np.abs(error)))
+                    error_stds.append(np.std(np.abs(error)))
+                    error_maxs.append(np.max(np.abs(error)))
+                    error_mins.append(np.min(np.abs(error)))
+                    
+                    NumpyIO.save_file(data_dict, directory_str, F'{save_str}ing_data_idx_{mu_index}' )
+                
+                train_df = pd.DataFrame({'idxs':idxs,
+                                        'Ns':Ns,
+                                        'error_means':error_means,
+                                        'error_stds':error_stds,
+                                        'error_maxs':error_maxs,
+                                        'error_mins':error_mins})
+                train_df.to_csv(os.path.join(directory_str, F'{save_str}_error_details.csv'))
+                
             # Print
             print("")
 
             print("")
-            print(TextBox(self.truth_problem.name() + " " + self.label + " data generation ends", fill="="))
+            print(TextBox(self.truth_problem.name() + " " + self.label + " data saved to directory " + str(directory), fill="="))
             print("")
 
-            return [reduced_solution_temp, truth_solution_temp]
+            print("")
+            print(TextBox(self.truth_problem.name() + " " + self.label + " data generation ends!", fill="="))
+            print("")
 
 
         

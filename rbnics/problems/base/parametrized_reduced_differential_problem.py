@@ -524,7 +524,7 @@ class ParametrizedReducedDifferentialProblem(ParametrizedProblem, metaclass=ABCM
         reduced_solution = self.basis_functions[:N] * self._solution
         truth_solution = self.truth_problem._solution
 
-        return [reduced_solution, truth_solution]
+        return [reduced_solution, truth_solution, N]
         
         
 
