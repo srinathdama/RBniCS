@@ -446,19 +446,32 @@ def RBReduction(DifferentialProblemReductionMethod_DerivedClass):
 
                     ### save dict containing 'mu, mesh, truth and reduced solutions' 
                     mesh = truth_solution_temp.function_space().mesh()
+                    gdim = mesh.geometry().dim()
                     # fvec = truth_solution_temp.vector()
-                    c_truth = truth_solution_temp.compute_vertex_values(mesh)
-                    c_reduced = reduced_solution_temp.compute_vertex_values(mesh)              
+                    if truth_solution_temp.value_rank() == 0:
+                        c_truth = truth_solution_temp.compute_vertex_values(mesh)
+                        c_reduced = reduced_solution_temp.compute_vertex_values(mesh)
+                    elif truth_solution_temp.value_rank() == 1:
+                        # Vector function, interpolated to vertices
+                        w0_truth = truth_solution_temp.compute_vertex_values(mesh)
+                        w0_red   = reduced_solution_temp.compute_vertex_values(mesh)
+                        nv = mesh.num_vertices()
+                        if len(w0_truth) != gdim * nv:
+                            raise AttributeError('Vector length must match geometric dimension.')
+                        X = mesh.coordinates()
+                        X = [X[:, i] for i in range(gdim)]
+                        c_truth   = [w0_truth[i * nv: (i + 1) * nv] for i in range(gdim)]
+                        c_reduced = [w0_red[i * nv: (i + 1) * nv] for i in range(gdim)]
 
                     data_dict = {'idx':mu_index,
+                                'mu': mu,
                                 'mesh_cells':mesh.cells(),
                                 'mesh_nodes':mesh.coordinates(),
                                 'truth_solution':c_truth,
-                                'reduced_solution':c_reduced,
-                                'N': N}
+                                'reduced_solution':c_reduced}
 
                     ## errors
-                    error = c_truth - c_reduced
+                    error = np.array(c_truth) - np.array(c_reduced)
                     idxs.append(mu_index)
                     Ns.append(N)
                     error_means.append(np.mean(np.abs(error)))
@@ -466,7 +479,9 @@ def RBReduction(DifferentialProblemReductionMethod_DerivedClass):
                     error_maxs.append(np.max(np.abs(error)))
                     error_mins.append(np.min(np.abs(error)))
                     
-                    NumpyIO.save_file(data_dict, directory_str, F'{save_str}ing_data_idx_{mu_index}' )
+                    # NumpyIO.save_file(data_dict, directory_str, F'{save_str}ing_data_idx_{mu_index}' )
+                    np.savez(F'{directory_str}/{save_str}ing_data_idx_{mu_index}.npz',
+                                 **data_dict , allow_pickle=True)
                 
                 train_df = pd.DataFrame({'idxs':idxs,
                                         'Ns':Ns,
@@ -486,7 +501,6 @@ def RBReduction(DifferentialProblemReductionMethod_DerivedClass):
             print("")
             print(TextBox(self.truth_problem.name() + " " + self.label + " data generation ends!", fill="="))
             print("")
-
 
         
         def speedup_analysis(self, N_generator=None, filename=None, **kwargs):

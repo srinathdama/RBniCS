@@ -11,6 +11,13 @@
 *.py[cdo]
 *.vtu
 *.xdmf
+*.zip
+.vscode
 .pytest_cache
 build
 dist
+tutorials/01_thermal_block/thermal_block/
+tutorials/01_thermal_block/Train_test_data/
+tutorials/01_thermal_block/RBniCS_heat_eq_tut_1/
+tutorials/07_nonlinear_elliptic/RBniCS_tut_7/
+tutorials/02_elastic_block/RBniCS_tut_2/

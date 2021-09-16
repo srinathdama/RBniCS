@@ -282,6 +282,108 @@ def PODGalerkinReduction(DifferentialProblemReductionMethod_DerivedClass):
             error_analysis_table.save(
                 self.folder["error_analysis"], "error_analysis" if filename is None else filename)
 
+        def save_data(self, N_generator=None, directory=None, **kwargs):
+            """
+            It computes the error of the reduced order approximation with respect to the full order one
+            over the testing set.
+
+            :param N_generator: generator of dimension of reduced problem.
+            """
+            self._init_error_analysis(**kwargs)
+            self._save_data(directory, **kwargs)
+            
+
+        def _save_data(self, directory=None, **kwargs):
+
+            print(TextBox(self.truth_problem.name() + " " + self.label + " data gen begins", fill="="))
+            print("")
+
+            from rbnics.utils.io import NumpyIO
+            import numpy as np
+            import pandas as pd
+
+            # for (mu_index, mu) in enumerate(self.testing_set):
+            idxs         = []
+            Ns           = []
+            error_means  = []
+            error_stds   = []
+            error_maxs   = []
+            error_mins   = []
+            for i, (data_set, save_str) in enumerate(zip([self.training_set, self.testing_set],
+                                                    ['train', 'test'])):
+                
+                if len(data_set) == 0:
+                    break
+                directory_str = os.path.join(directory, save_str)
+                os.makedirs(directory_str, exist_ok=True)
+                for (mu_index, mu) in enumerate(data_set):
+                    print(TextLine(str(mu_index), fill="#"))
+
+                    N = self.reduced_problem.N
+                    self.reduced_problem.set_mu(mu)
+                    self.reduced_problem.solve(N, **kwargs)
+
+                    reduced_solution_temp, truth_solution_temp, N = self.reduced_problem.compute_reduced_truth_solutions(**kwargs)
+
+                    ### save dict containing 'mu, mesh, truth and reduced solutions' 
+                    mesh = truth_solution_temp.function_space().mesh()
+                    gdim = mesh.geometry().dim()
+                    # fvec = truth_solution_temp.vector()
+                    if truth_solution_temp.value_rank() == 0:
+                        c_truth = truth_solution_temp.compute_vertex_values(mesh)
+                        c_reduced = reduced_solution_temp.compute_vertex_values(mesh)
+                    elif truth_solution_temp.value_rank() == 1:
+                        # Vector function, interpolated to vertices
+                        w0_truth = truth_solution_temp.compute_vertex_values(mesh)
+                        w0_red   = reduced_solution_temp.compute_vertex_values(mesh)
+                        nv = mesh.num_vertices()
+                        if len(w0_truth) != gdim * nv:
+                            raise AttributeError('Vector length must match geometric dimension.')
+                        X = mesh.coordinates()
+                        X = [X[:, i] for i in range(gdim)]
+                        c_truth   = [w0_truth[i * nv: (i + 1) * nv] for i in range(gdim)]
+                        c_reduced = [w0_red[i * nv: (i + 1) * nv] for i in range(gdim)]
+
+
+                    data_dict = {'idx':mu_index,
+                                'mu': mu,
+                                'mesh_cells':mesh.cells(),
+                                'mesh_nodes':mesh.coordinates(),
+                                'truth_solution':c_truth,
+                                'reduced_solution':c_reduced}
+
+                    ## errors
+                    error = np.array(c_truth) - np.array(c_reduced)
+                    idxs.append(mu_index)
+                    Ns.append(N)
+                    error_means.append(np.mean(np.abs(error)))
+                    error_stds.append(np.std(np.abs(error)))
+                    error_maxs.append(np.max(np.abs(error)))
+                    error_mins.append(np.min(np.abs(error)))
+                    
+                    # NumpyIO.save_file(data_dict, directory_str, F'{save_str}ing_data_idx_{mu_index}' )
+                    np.savez(F'{directory_str}/{save_str}ing_data_idx_{mu_index}.npz',
+                                 **data_dict , allow_pickle=True)
+                
+                train_df = pd.DataFrame({'idxs':idxs,
+                                        'Ns':Ns,
+                                        'error_means':error_means,
+                                        'error_stds':error_stds,
+                                        'error_maxs':error_maxs,
+                                        'error_mins':error_mins})
+                train_df.to_csv(os.path.join(directory_str, F'{save_str}_error_details.csv'))
+                
+            # Print
+            print("")
+
+            print("")
+            print(TextBox(self.truth_problem.name() + " " + self.label + " data saved to directory " + str(directory), fill="="))
+            print("")
+
+            print("")
+            print(TextBox(self.truth_problem.name() + " " + self.label + " data generation ends!", fill="="))
+            print("")
+
         def speedup_analysis(self, N_generator=None, filename=None, **kwargs):
             """
             It computes the speedup of the reduced order approximation with respect to the full order one
